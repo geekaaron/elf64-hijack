@@ -13,7 +13,7 @@
 #define GREEN(str)	"\033[1m\033[;32m"str"\033[0m"
 #define RED(str)	"\033[1m\033[;31m"str"\033[0m"
 #define PAGE_SIZE	4096
-			
+
 typedef struct
 {
 	Elf64_Ehdr *ehdr;
@@ -29,3 +29,5 @@ typedef struct
 
 int load_elf(char *file, elf64_t *elf);
 void unload_elf(elf64_t *elf);
+
+Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize);
