@@ -16,6 +16,7 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 
 	/* Get the text segment */
 	printf("Searching text segment...\n");
+	paddr = 0;
 	for (int i = 0; i < telf->ehdr->e_phnum; i++)
 	{
 		if (telf->phdr[i].p_type == PT_LOAD && !telf->phdr[i].p_offset)
@@ -28,7 +29,13 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 		}
 	}
 
-	/* Adjust the virtual address of segments after text segment */
+	if (paddr == 0)
+	{
+		fprintf(stderr, "%s Text segment not found\n", RED("[-]"));
+		return -1;
+	}
+
+	/* Adjust the offset of segments after text segment */
 	printf("Adjuting segments's offset of the target file...\n");
 	for (int i = 0; i < telf->ehdr->e_phnum; i++)
 	{
