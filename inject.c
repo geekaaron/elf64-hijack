@@ -36,10 +36,10 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 	if (paddr == 0)
 	{
 		fprintf(stderr, "%s Text segment not found\n", RED("[-]"));
-		return -1;
+		return -1;									// -->
 	}
 
-	printf("Adjuting segments offset of the target file...\n");
+	printf("Adjuting segments offset after text segment of the target file...\n");
 	for (int i = 0; i < telf->ehdr->e_phnum; i++)
 	{
 		if (telf->phdr[i].p_offset >= poff)
@@ -51,7 +51,7 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 		}
 	}
 
-	printf("Adjuting section offset of the target file...\n");
+	printf("Adjuting section offset after text segment of the target file...\n");
 	for (int i = 0; i < telf->ehdr->e_shnum; i++)
 	{
 		if (telf->shdr[i].sh_offset >= poff)
@@ -78,13 +78,13 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 	if ((fd = open(TMP_FILE, O_CREAT | O_WRONLY, telf->mode)) < 0)
 	{
 		fprintf(stderr, "[-] Open file %s failed\n", TMP_FILE);
-		return -1;
+		return -1;									// -->
 	}
 
 	if (!(empty = (uint8_t *)malloc(PAGE_SIZE - psize)))
 	{
 		perror("Malloc");
-		return -1;
+		return -1;									// -->
 	}
 	memset(empty, 0, PAGE_SIZE - psize);
 
@@ -92,31 +92,31 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 	if (write(fd, telf->mem, poff) != poff)
 	{
 		perror("Write mem");
-		return -1;
+		return -1;									// -->
 	}
 
 	if (write(fd, pcode, psize) != psize)
 	{
 		perror("Write pcode");
-		return -1;
+		return -1;									// -->
 	}
 
 	if (write(fd, empty, PAGE_SIZE - psize) != PAGE_SIZE - psize)
 	{
 		perror("Write empty");	
-		return -1;
+		return -1;									// -->
 	}
 
 	if (write(fd, telf->mem + poff, telf->size - poff) != telf->size - poff)
 	{
 		perror("Write mem + poff");
-		return -1;
+		return -1;									// -->
 	}
 
 	if (fsync(fd) < 0)
 	{
 		fprintf(stderr, "[-] Fsync file %s failed\n", TMP_FILE);
-		return -1;
+		return -1;									// -->
 	}
 
 	close(fd);

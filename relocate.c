@@ -32,7 +32,7 @@ int addsymbol(char *name, Elf64_Sym *sym, elf64_t *telf)
 	if (symoff == 0)
 	{
 		fprintf(stderr, "%s Symbol table not found\n", RED("[-]"));
-		return -1;
+		return -1;									// -->
 	}
 
 	printf("Adjusting sections offset after .symtab section of target file...\n");
@@ -79,7 +79,7 @@ int addsymbol(char *name, Elf64_Sym *sym, elf64_t *telf)
 	if ((fd = open(TMP_FILE, O_CREAT | O_WRONLY, telf->mode)) < 0)
 	{
 		fprintf(stderr, "%s Open file %s failed\n", RED("[-]"), TMP_FILE);
-		return -1;
+		return -1;									// -->
 	}
 
 	printf("Adding symbol %s to target file...\n", name);
@@ -87,37 +87,37 @@ int addsymbol(char *name, Elf64_Sym *sym, elf64_t *telf)
 	if (write(fd, telf->mem, symoff) != symoff)
 	{
 		perror("telf->mem");
-		return -1;
+		return -1;									// -->
 	}
 
 	if (write(fd, sym, symsize) != symsize)
 	{
 		perror("sym");
-		return -1;
+		return -1;									// -->
 	}
 
 	if (write(fd, telf->mem + symoff, stroff - symoff) != stroff - symoff)
 	{
 		perror("telf->mem + symoff");
-		return -1;
+		return -1;									// -->
 	}
 
 	if (write(fd, name, slen) != slen)
 	{
 		perror("name");
-		return -1;
+		return -1;									// -->
 	}
 
 	if (write(fd, telf->mem + stroff, telf->size - stroff) != telf->size - stroff)
 	{
 		perror("telf->mem + stroff");
-		return -1;
+		return -1;									// -->
 	}
 
 	if (fsync(fd) < 0)
 	{
 		fprintf(stderr, "[-] Fsync file %s failed\n", TMP_FILE);
-		return -1;
+		return -1;									// -->
 	}
 
 	printf("%s Symbol %s, value 0x%08lx: 0x%08lx\n", GREEN("[+]"), name, sym->st_value, symoff);
@@ -148,13 +148,13 @@ int relocate_elf(char *tfile, char *pfile)
 	if (load_elf(tfile, &telf) == -1)
 	{
 		fprintf(stderr, "%s Load file %s failed\n", RED("[-]"), tfile);
-		return -1;								// -->
+		return -1;									// -->
 	}
 
 	if (load_elf(pfile, &pelf) == -1)
 	{
 		fprintf(stderr, "%s Load file %s failed\n", RED("[-]"), pfile);
-		return -1;								// -->
+		return -1;									// -->
 	}
 
 	shstrtab = &pelf.mem[pelf.shdr[pelf.ehdr->e_shstrndx].sh_offset];
@@ -172,7 +172,7 @@ int relocate_elf(char *tfile, char *pfile)
 	if (paddr == 0)
 	{
 		fprintf(stderr, "%s Text segment not found\n", RED("[-]"));
-		return -1;
+		return -1;									// -->
 	}
 
 	/* Adjust the object file sections that type is SHT_PROGBITS */
@@ -295,13 +295,13 @@ int main(int argc, char *argv[])
 	if (argc != 3)
 	{
 		printf("Usage: %s <target file> <object file>\n", argv[0]);
-		exit(-1);
+		exit(-1);									// -->
 	}
 
 	if (relocate_elf(argv[1], argv[2]) == -1)
 	{
 		fprintf(stderr, "%s Relocate file %s failed\n", RED("[-]"), argv[2]);
-		exit(-1);
+		exit(-1);									// -->
 	}
 
 	return 0;

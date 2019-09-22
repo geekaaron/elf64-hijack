@@ -21,7 +21,7 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 	if (load_elf(tfile, &telf) == -1)
 	{
 		fprintf(stderr, "%s Load file %s failed\n", RED("[-]"), tfile);
-		return -1;
+		return -1;									// -->
 	}
 
 	shstrtab = &telf.mem[telf.shdr[telf.ehdr->e_shstrndx].sh_offset];
@@ -55,13 +55,13 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 	if (relaplt == NULL)
 	{
 		fprintf(stderr, "%s .rela.plt section not found\n", RED("[-]"));
-		return -1;
+		return -1;									// -->
 	}
 
 	if (plt == NULL)
 	{
 		fprintf(stderr, "%s .plt section not found\n", RED("[-]"));
-		return -1;
+		return -1;									// -->
 	}
 
 	symtab = (Elf64_Sym *)&telf.mem[telf.shdr[symndx].sh_offset];
@@ -81,7 +81,7 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 	if (funcndx == -1)
 	{
 		fprintf(stderr, "%s Function %s not found\n", RED("[-]"), name);
-		return -1;
+		return -1;									// -->
 	}
 
 	printf("Searching function %s plt code...\n", name);
@@ -104,25 +104,25 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 	if (addr == tmpaddr)
 	{
 		fprintf(stderr, "%s Function %s plt code not found\n", RED("[-]"), name);
-		return -1;
+		return -1;									// -->
 	}
 
 	if ((fd = open(TMP_FILE, O_CREAT | O_WRONLY, telf.mode)) < 0)
 	{
 		fprintf(stderr, "%s Open file %s failed\n", RED("[-]"), TMP_FILE);
-		return -1;
+		return -1;									// -->
 	}
 
 	if (write(fd, telf.mem, telf.size) != telf.size)
 	{
 		perror("telf.mem");
-		return -1;
+		return -1;									// -->
 	}
 
 	if (fsync(fd) < 0)
 	{
 		fprintf(stderr, "[-] Fsync file %s failed\n", TMP_FILE);
-		return -1;
+		return -1;									// -->
 	}
 
 	close(fd);
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
 	if (argc != 4)
 	{
 		printf("Usage: %s <target file> <target function> <new address>\n", argv[0]);
-		exit(0);
+		exit(0);									// -->
 	}
 
 	errno = 0;
@@ -149,13 +149,13 @@ int main(int argc, char *argv[])
 	if (errno == EINVAL)
 	{
 		fprintf(stderr, "%s Bad address\n", RED("[-]"));
-		exit(-1);
+		exit(-1);									// -->
 	}
 
 	if (plthijack(argv[1], argv[2], addr) == -1)
 	{
 		fprintf(stderr, "%s PLT hijack failed\n", RED("[-]"));
-		exit(-1);
+		exit(-1);									// -->
 	}
 
 	return 0;

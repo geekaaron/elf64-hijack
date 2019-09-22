@@ -43,7 +43,7 @@ int load_elf(char *file, elf64_t *elf)
 	}
 	close(fd);
 
-	return 1;
+	return 0;
 }
 
 void unload_elf(elf64_t *elf)
