@@ -141,6 +141,7 @@ int relocate_elf(char *tfile, char *pfile)
 	Elf32_Addr relavaddr, symval, *rlocation;
 	Elf64_Off symoff;
 
+	int striped;
 	size_t psize;
 	uint8_t *pcode;
 	char *shstrtab, *strtab;
@@ -262,6 +263,8 @@ int relocate_elf(char *tfile, char *pfile)
 		return -1;									// -->
 	}
 
+	printf("Searching symbols in object file...\n");
+	striped = iself_striped(&telf);				// striped by comman <strip>
 	for (int i = 0; i < pelf.ehdr->e_shnum; i++)
 	{
 		if (pelf.shdr[i].sh_type == SHT_SYMTAB)
@@ -275,8 +278,9 @@ int relocate_elf(char *tfile, char *pfile)
 				{
 					symsec = &pelf.shdr[symbol->st_shndx];
 					symbol->st_value += symsec->sh_addr;
-					if (addsymbol(&strtab[symbol->st_name], symbol, &telf) == -1)
-						return -1;					// -->
+					printf("%s Symbol %s, value 0x%08lx\n", GREEN("[+]"), &strtab[symbol->st_name], symbol->st_value);
+					if (!striped && addsymbol(&strtab[symbol->st_name], symbol, &telf) == -1)
+						return -1;
 				}
 			}
 			break;

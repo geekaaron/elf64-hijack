@@ -51,3 +51,13 @@ void unload_elf(elf64_t *elf)
 	if (!elf) return;
 	munmap(elf->mem, elf->size);
 }
+
+/* Striped by command strip */
+int iself_striped(elf64_t *elf)
+{
+	for (int i = 0; i < elf->ehdr->e_shnum; i++)
+		if (elf->shdr[i].sh_type == SHT_SYMTAB)
+			return 0;
+
+	return 1;
+}
