@@ -8,23 +8,27 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 	Elf64_Off poff, tmpoff;
 
 	int fd;
+	size_t tmpsize;
 	uint8_t *empty;
 	char *shstrtab;
 
-	/* Get string table of section header */
 	shstrtab = &telf->mem[telf->shdr[telf->ehdr->e_shstrndx].sh_offset];
-
-	/* Get the text segment */
-	printf("Searching text segment...\n");
+	printf("Searching text segment of target file...\n");
 	paddr = 0;
 	for (int i = 0; i < telf->ehdr->e_phnum; i++)
 	{
 		if (telf->phdr[i].p_type == PT_LOAD && !telf->phdr[i].p_offset)
 		{
+			printf("%s Text segment offset: 0x%08lx\n", GREEN("[+]"), telf->phdr[i].p_offset);
+			printf("%s Text segment address: 0x%08lx\n", GREEN("[+]"), telf->phdr[i].p_vaddr);
 			paddr = telf->phdr[i].p_vaddr + telf->phdr[i].p_memsz;
 			poff = telf->phdr[i].p_offset + telf->phdr[i].p_filesz;
+			tmpsize = telf->phdr[i].p_filesz;
 			telf->phdr[i].p_filesz += psize;
+			printf("%s Text segment file size: %ldByte --> %ldByte\n", GREEN("[+]"), tmpsize, telf->phdr[i].p_filesz);
+			tmpsize = telf->phdr[i].p_memsz;
 			telf->phdr[i].p_memsz += psize;
+			printf("%s Text segment memory size: %ldByte --> %ldByte\n", GREEN("[+]"), tmpsize, telf->phdr[i].p_memsz);
 			break;
 		}
 	}
@@ -35,36 +39,42 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 		return -1;
 	}
 
-	/* Adjust the offset of segments after text segment */
-	printf("Adjuting segments's offset of the target file...\n");
+	printf("Adjuting segments offset of the target file...\n");
 	for (int i = 0; i < telf->ehdr->e_phnum; i++)
 	{
 		if (telf->phdr[i].p_offset >= poff)
 		{
 			tmpoff = telf->phdr[i].p_offset;
 			telf->phdr[i].p_offset += PAGE_SIZE;
-			printf("%s Segment %d: 0x%08lx --> 0x%08lx\n", \
+			printf("%s Segment %d offset: 0x%08lx --> 0x%08lx\n", \
 				GREEN("[+]"), i, tmpoff, telf->phdr[i].p_offset);
 		}
 	}
 
-	/* Adjust the offset of sections after parasite offset */
-	printf("Adjuting section's offset of the target file...\n");
+	printf("Adjuting section offset of the target file...\n");
 	for (int i = 0; i < telf->ehdr->e_shnum; i++)
 	{
 		if (telf->shdr[i].sh_offset >= poff)
 		{
 			tmpoff = telf->shdr[i].sh_offset;
 			telf->shdr[i].sh_offset += PAGE_SIZE;
-			printf("%s Section %s: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), \
+			printf("%s Section %s offset: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), \
 				&shstrtab[telf->shdr[i].sh_name], tmpoff, telf->shdr[i].sh_offset);
 		}
 		else if (telf->shdr[i].sh_addr + telf->shdr[i].sh_size == paddr)
+		{
+			tmpsize = telf->shdr[i].sh_size;
 			telf->shdr[i].sh_size += psize;
+			printf("%s Section %s size: %ldBytes --> %ldBytes\n", GREEN("[+]"), \
+				&shstrtab[telf->shdr[i].sh_name], tmpsize, telf->shdr[i].sh_size);
+		}
 	}
-	telf->ehdr->e_shoff += PAGE_SIZE;
 
-	/* Open output file */
+	printf("Adjuting section header offset of the target file...\n");
+	tmpoff = telf->ehdr->e_shoff;
+	telf->ehdr->e_shoff += PAGE_SIZE;
+	printf("%s Section header offset: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), tmpoff, telf->ehdr->e_shoff);
+
 	if ((fd = open(TMP_FILE, O_CREAT | O_WRONLY, telf->mode)) < 0)
 	{
 		fprintf(stderr, "[-] Open file %s failed\n", TMP_FILE);

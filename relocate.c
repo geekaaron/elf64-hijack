@@ -6,14 +6,11 @@ int addsymbol(char *name, Elf64_Sym *sym, elf64_t *telf)
 	Elf64_Off symoff, stroff, tmpoff;
 
 	int fd, slen, strndx;
-	size_t symsize, strstart;
+	size_t tmpsize, symsize, strstart;
 	char *shstrtab, strtab;
 
-	/* Get string table of section header */
 	shstrtab = &telf->mem[telf->shdr[telf->ehdr->e_shstrndx].sh_offset];
-
-	/* Get symbol table of target file */
-	printf("Searching symbol table...\n");
+	printf("Searching symbol table of target file...\n");
 	symsize = sizeof(Elf64_Sym);
 	symoff = 0;
 	for (int i = 0; i < telf->ehdr->e_shnum; i++)
@@ -21,8 +18,13 @@ int addsymbol(char *name, Elf64_Sym *sym, elf64_t *telf)
 		if (telf->shdr[i].sh_type == SHT_SYMTAB)
 		{
 			symoff = telf->shdr[i].sh_offset + telf->shdr[i].sh_size;
+			tmpsize = telf->shdr[i].sh_size;
 			telf->shdr[i].sh_size += symsize;
 			strndx = telf->shdr[i].sh_link;
+			printf("%s Symbol table offset: 0x%08lx\n", GREEN("[+]"), telf->shdr[i].sh_offset);
+			printf("%s Symbol table address: 0x%08lx\n", GREEN("[+]"), telf->shdr[i].sh_addr);
+			printf("%s Symbol table size: %ldBytes --> %ldBytes\n", GREEN("[+]"), tmpsize, telf->shdr[i].sh_size);
+			printf("%s Symbol table linked string table index: %d\n", GREEN("[+]"), strndx);
 			break;
 		}
 	}
@@ -33,55 +35,55 @@ int addsymbol(char *name, Elf64_Sym *sym, elf64_t *telf)
 		return -1;
 	}
 
-	/* Adjust the section's offset after symtab section */
-	printf("Adjusting the section's offset after .symtab section...\n");
+	printf("Adjusting sections offset after .symtab section of target file...\n");
 	for (int i = 0; i < telf->ehdr->e_shnum; i++)
 	{
 		if (telf->shdr[i].sh_offset >= symoff)
 		{
 			tmpoff = telf->shdr[i].sh_offset;
 			telf->shdr[i].sh_offset += symsize;
-			printf("%s Section %s: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), \
+			printf("%s Section %s offset: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), \
 				&shstrtab[telf->shdr[i].sh_name], tmpoff, telf->shdr[i].sh_offset);
 		}
 	}
 
-	/* Get string table of symbol table of the target file */
+	printf("Searching string table of target file...\n");
 	slen = strlen(name);
-	stroff = telf->shdr[strndx].sh_offset + telf->shdr[strndx].sh_size - symsize;
+	stroff = telf->shdr[strndx].sh_offset + telf->shdr[strndx].sh_size;
+	if (telf->shdr[strndx].sh_offset >= symoff) stroff -= symsize;
 	strstart = telf->shdr[strndx].sh_size;
+	tmpsize = telf->shdr[strndx].sh_size;
 	telf->shdr[strndx].sh_size += slen;
 	sym->st_name = strstart;
+	printf("%s String table offset: 0x%08lx\n", GREEN("[+]"), telf->shdr[strndx].sh_offset);
+	printf("%s String table address: 0x%08lx\n", GREEN("[+]"), telf->shdr[strndx].sh_addr);
+	printf("%s String table size: %ldBytes --> %ldBytes\n", GREEN("[+]"), tmpsize, telf->shdr[strndx].sh_size);
 
-	/* Adjust the section's offset after strtab section */
-	printf("Adjusting the section's offset after .strtab section...\n");
+	printf("Adjusting the sections offset after .strtab section of target file...\n");
 	for (int i = 0; i < telf->ehdr->e_shnum; i++)
 	{
 		if (telf->shdr[i].sh_offset >= stroff + symsize)
 		{
 			tmpoff = telf->shdr[i].sh_offset;
 			telf->shdr[i].sh_offset += slen;
-			printf("%s Section %s: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), \
+			printf("%s Section %s offset: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), \
 				&shstrtab[telf->shdr[i].sh_name], tmpoff, telf->shdr[i].sh_offset);
 		}
 	}
 
-	/* Adjust section header offset */
-	printf("Adjusting the section header's offset...\n");
+	printf("Adjusting the section header offset of target file...\n");
 	tmpoff = telf->ehdr->e_shoff;
 	telf->ehdr->e_shoff += (symsize + slen);
 	printf("%s Section header: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), tmpoff, telf->ehdr->e_shoff);
 
-	/* Open temp file */
 	if ((fd = open(TMP_FILE, O_CREAT | O_WRONLY, telf->mode)) < 0)
 	{
 		fprintf(stderr, "%s Open file %s failed\n", RED("[-]"), TMP_FILE);
 		return -1;
 	}
 
-	printf("Adding symbol %s...\n", name);
+	printf("Adding symbol %s to target file...\n", name);
 
-	/* Write symbol to temp file */
 	if (write(fd, telf->mem, symoff) != symoff)
 	{
 		perror("telf->mem");
@@ -120,7 +122,6 @@ int addsymbol(char *name, Elf64_Sym *sym, elf64_t *telf)
 
 	printf("%s Symbol %s, value 0x%08lx: 0x%08lx\n", GREEN("[+]"), name, sym->st_value, symoff);
 
-	/* Delete the target file and rename the temp file */
 	unload_elf(telf);
 	unlink(telf->path);
 	rename(TMP_FILE, telf->path);
@@ -136,8 +137,8 @@ int relocate_elf(char *tfile, char *pfile)
 	Elf64_Rela *rela;
 	Elf64_Shdr *relasec, *symsec;
 	Elf64_Sym *symtab, *symbol;
-	Elf64_Addr paddr, relavaddr, symval;
-	Elf64_Addr *rlocation;
+	Elf64_Addr paddr;
+	Elf32_Addr relavaddr, symval, *rlocation;
 	Elf64_Off symoff;
 
 	size_t psize;
@@ -156,11 +157,8 @@ int relocate_elf(char *tfile, char *pfile)
 		return -1;								// -->
 	}
 
-	/* Get the string table of section header */
 	shstrtab = &pelf.mem[pelf.shdr[pelf.ehdr->e_shstrndx].sh_offset];
-
-	/* Get the target address where parasite will inject (text padding) */
-	printf("Searching text segment...\n");
+	printf("Searching text segment of target file...\n");
 	paddr = 0;
 	for (int i = 0; i < telf.ehdr->e_phnum; i++)
 	{
@@ -177,8 +175,8 @@ int relocate_elf(char *tfile, char *pfile)
 		return -1;
 	}
 
-	/* Adjust the parasite file sections that type is SHT_PROGBITS */
-	printf("Adjusting the section address of object file...\n");
+	/* Adjust the object file sections that type is SHT_PROGBITS */
+	printf("Adjusting the sections address of object file...\n");
 	psize = 0;
 	for (int i = 0; i < pelf.ehdr->e_shnum; i++)
 	{
@@ -187,14 +185,13 @@ int relocate_elf(char *tfile, char *pfile)
 			tmpaddr = pelf.shdr[i].sh_addr;
 			pelf.shdr[i].sh_addr += (paddr + psize);
 			psize += pelf.shdr[i].sh_size;
-			printf("%s Section %s: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), \
+			printf("%s Section %s address: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), \
 				&shstrtab[pelf.shdr[i].sh_name], tmpaddr, pelf.shdr[i].sh_addr);
 		}
 		else if (pelf.shdr[i].sh_type == SHT_STRTAB && i != pelf.ehdr->e_shstrndx)
 			strtab = &pelf.mem[pelf.shdr[i].sh_offset];
 	}
 
-	/* Relocate the parasite file */
 	printf("Relocating object file...\n");
 	for (int i = 0; i < pelf.ehdr->e_shnum; i++)
 	{
@@ -205,24 +202,21 @@ int relocate_elf(char *tfile, char *pfile)
 			rela = (Elf64_Rela *)&pelf.mem[pelf.shdr[i].sh_offset];
 			relasec = &pelf.shdr[pelf.shdr[i].sh_info];
 			printf("%s Relocation linked section: %s\n", GREEN("[+]"), &shstrtab[relasec->sh_name]);
-			printf("%s Symbol table: 0x%08lx\n", GREEN("[+]"), symoff);
 			for (int j = 0; j < pelf.shdr[i].sh_size / sizeof(Elf64_Rela); j++, rela++)
 			{
 				/* Get associated symbol */
 				symbol = &symtab[ELF64_R_SYM(rela->r_info)];
-				symoff += ((char *)symbol - (char *)symtab);
 				symsec = &pelf.shdr[symbol->st_shndx];
 				/* Get symbol value: S */
 				symval = symsec->sh_addr + symbol->st_value;
 				/* Get target address: P */
 				relavaddr = relasec->sh_addr + rela->r_offset;
 				/* Get location of relocation in file */
-				rlocation = (Elf64_Addr *)&pelf.mem[relasec->sh_offset + rela->r_offset];
+				rlocation = (Elf32_Addr *)&pelf.mem[relasec->sh_offset + rela->r_offset];
 
 				printf("%s Symbol linked section %s\n", GREEN("[+]"), &shstrtab[symsec->sh_name]);
-				printf("%s Symbol %s: 0x%08lx\n", GREEN("[+]"), &strtab[symbol->st_name], symoff);
-				printf("%s Position of relocation (P): 0x%08lx\n", GREEN("[+]"), relavaddr);
-				printf("%s Symbol value (S): 0x%08lx\n", GREEN("[+]"), symval);
+				printf("%s Position of relocation (P): 0x%08x\n", GREEN("[+]"), relavaddr);
+				printf("%s Symbol value (S): 0x%08x\n", GREEN("[+]"), symval);
 
 				switch(ELF64_R_TYPE(rela->r_info))
 				{
@@ -232,7 +226,7 @@ int relocate_elf(char *tfile, char *pfile)
 					*rlocation += rela->r_addend;
 					*rlocation -= relavaddr;
 					break;
-				/* R_X86_64_32: S + A - P */
+				/* R_X86_64_32: S + A */
 				case R_X86_64_32:
 					*rlocation += symval;
 					*rlocation += rela->r_addend;
@@ -256,7 +250,7 @@ int relocate_elf(char *tfile, char *pfile)
 		if (pelf.shdr[i].sh_type == SHT_PROGBITS)
 		{
 			memcpy(pcode + psize, &pelf.mem[pelf.shdr[i].sh_offset], pelf.shdr[i].sh_size);
-			printf("%s Section %s: %ld bytes --> Object code\n", GREEN("[+]"), \
+			printf("%s Section %s: %ldBytes --> Object code\n", GREEN("[+]"), \
 				&shstrtab[pelf.shdr[i].sh_name], pelf.shdr[i].sh_size);
 			psize += pelf.shdr[i].sh_size;
 		}

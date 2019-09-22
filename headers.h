@@ -29,5 +29,4 @@ typedef struct
 
 int load_elf(char *file, elf64_t *elf);
 void unload_elf(elf64_t *elf);
-
 Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize);

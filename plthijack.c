@@ -25,7 +25,6 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 	}
 
 	shstrtab = &telf.mem[telf.shdr[telf.ehdr->e_shstrndx].sh_offset];
-	/* Get .rela.plt section and .plt section */
 	printf("Searching .rela.plt section and .plt section...\n");
 	relaplt = NULL, plt = NULL;
 	for (int i = 0; i < telf.ehdr->e_shnum; i++)
@@ -35,6 +34,10 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 			relaplt = (Elf64_Rela *)&telf.mem[telf.shdr[i].sh_offset];
 			relapltsz = telf.shdr[i].sh_size;
 			symndx = telf.shdr[i].sh_link;
+			printf("%s .rela.plt section offset: 0x%08lx\n", GREEN("[+]"), telf.shdr[i].sh_offset);
+			printf("%s .rela.plt section address: 0x%08lx\n", GREEN("[+]"), telf.shdr[i].sh_addr);
+			printf("%s .rela.plt section size: %ldBytes\n", GREEN("[+]"), telf.shdr[i].sh_size);
+			printf("%s .rela.plt section linked symbol table index: %d\n", GREEN("[+]"), symndx);
 		}
 		else if (!strcmp(&shstrtab[telf.shdr[i].sh_name], ".plt"))
 		{
@@ -42,6 +45,10 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 			pltoff = telf.shdr[i].sh_offset;
 			pltentsz = telf.shdr[i].sh_entsize;
 			pltsz = telf.shdr[i].sh_size;
+			printf("%s .plt section offset: 0x%08lx\n", GREEN("[+]"), telf.shdr[i].sh_offset);
+			printf("%s .plt section address: 0x%08lx\n", GREEN("[+]"), telf.shdr[i].sh_addr);
+			printf("%s .plt section size: %ldBytes\n", GREEN("[+]"), pltsz);
+			printf("%s .plt section entry size: %ldBytes\n", GREEN("[+]"), pltentsz);
 		}
 	}
 
@@ -57,11 +64,8 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 		return -1;
 	}
 
-	/* Get symbol table associated with .rela.plt */
 	symtab = (Elf64_Sym *)&telf.mem[telf.shdr[symndx].sh_offset];
 	strtab = &telf.mem[telf.shdr[telf.shdr[symndx].sh_link].sh_offset];
-
-	/* Find the index of target function in .rela.plt */
 	printf("Searching function %s index in .rela.plt...\n", name);
 	funcndx = -1;
 	for (int i = 0; i < relapltsz / sizeof(Elf64_Rela); i++)
@@ -80,7 +84,6 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 		return -1;
 	}
 
-	/* Find the code associated with target function in .plt */
 	printf("Searching function %s plt code...\n", name);
 	tmpaddr = addr;
 	for (int i = 0; i < pltsz / pltentsz; i++)
