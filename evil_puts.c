@@ -8,9 +8,7 @@ ssize_t _write(int fd, const void *buf, size_t count)
 	ssize_t ret;
 
 	__asm__ __volatile__ (
-		"pushq %%rsi\n\t"
 		"syscall\n\t"
-		"popq %%rsi"
 		: "=a"(ret)
 		: "0"(SYS_write), "D"(fd), "S"(buf), "d"(count)
 	);
