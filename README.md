@@ -1,7 +1,7 @@
 
 # ELF64 hijack
 
-Elf64 object file relocation and plt hijack (even target file was striped or not).
+Elf64 object file relocation and plt hijack (even target file was striped).
 
 # Usage
 
