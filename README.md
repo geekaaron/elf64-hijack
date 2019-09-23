@@ -20,7 +20,7 @@ $ ./plthijack host puts <address of evil_puts>
 
 ```
 $ sstrip host
-$ host
+$ ./host
 I'm the host, please don't hijack me.
 $ ls
 evil_puts.c  headers.h  host.c    inject.o  plthijack    plthijack.o  relocate    relocate.o  utils.o
