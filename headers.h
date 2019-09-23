@@ -20,6 +20,13 @@ typedef struct
 	Elf64_Shdr *shdr;
 	Elf64_Phdr *phdr;
 
+	Elf64_Dyn *dyn;
+
+	Elf64_Off textoff;
+	Elf64_Off dataoff;
+	Elf64_Addr textvaddr;
+	Elf64_Addr datavaddr;
+
 	int size;
 	int mode;
 

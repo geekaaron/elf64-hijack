@@ -137,8 +137,8 @@ int relocate_elf(char *tfile, char *pfile)
 	Elf64_Rela *rela;
 	Elf64_Shdr *relasec, *symsec;
 	Elf64_Sym *symtab, *symbol;
-	Elf64_Addr paddr;
-	Elf32_Addr relavaddr, symval, *rlocation;
+	Elf64_Addr paddr, relavaddr, symval;
+	Elf32_Addr *rlocation;
 	Elf64_Off symoff;
 
 	int striped;
@@ -216,21 +216,18 @@ int relocate_elf(char *tfile, char *pfile)
 				rlocation = (Elf32_Addr *)&pelf.mem[relasec->sh_offset + rela->r_offset];
 
 				printf("%s Symbol linked section %s\n", GREEN("[+]"), &shstrtab[symsec->sh_name]);
-				printf("%s Position of relocation (P): 0x%08x\n", GREEN("[+]"), relavaddr);
-				printf("%s Symbol value (S): 0x%08x\n", GREEN("[+]"), symval);
+				printf("%s Position of relocation (P): 0x%08lx\n", GREEN("[+]"), relavaddr);
+				printf("%s Symbol value (S): 0x%08lx\n", GREEN("[+]"), symval);
 
 				switch(ELF64_R_TYPE(rela->r_info))
 				{
 				/* R_X86_64_PC32: S + A - P */
 				case R_X86_64_PC32:
-					*rlocation += symval;
-					*rlocation += rela->r_addend;
-					*rlocation -= relavaddr;
+					*rlocation += (Elf32_Addr)(symval + rela->r_addend - relavaddr);
 					break;
 				/* R_X86_64_32: S + A */
 				case R_X86_64_32:
-					*rlocation += symval;
-					*rlocation += rela->r_addend;
+					*rlocation += (Elf32_Addr)(symval + rela->r_addend);
 					break;
 				}
 			}
@@ -264,7 +261,7 @@ int relocate_elf(char *tfile, char *pfile)
 	}
 
 	printf("Searching symbols in object file...\n");
-	striped = iself_striped(&telf);				// striped by comman <strip>
+	striped = iself_striped(&telf);				// Target file was striped
 	for (int i = 0; i < pelf.ehdr->e_shnum; i++)
 	{
 		if (pelf.shdr[i].sh_type == SHT_SYMTAB)
@@ -307,6 +304,8 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "%s Relocate file %s failed\n", RED("[-]"), argv[2]);
 		exit(-1);									// -->
 	}
+
+	printf("\n%s\n", GREEN("Success!"));
 
 	return 0;
 }

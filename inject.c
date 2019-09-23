@@ -12,7 +12,6 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 	uint8_t *empty;
 	char *shstrtab;
 
-	shstrtab = &telf->mem[telf->shdr[telf->ehdr->e_shstrndx].sh_offset];
 	printf("Searching text segment of target file...\n");
 	paddr = 0;
 	for (int i = 0; i < telf->ehdr->e_phnum; i++)
@@ -51,6 +50,9 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 		}
 	}
 
+	if (iself_striped(telf)) goto striped;
+
+	shstrtab = &telf->mem[telf->shdr[telf->ehdr->e_shstrndx].sh_offset];
 	printf("Adjuting section offset after text segment of the target file...\n");
 	for (int i = 0; i < telf->ehdr->e_shnum; i++)
 	{
@@ -74,6 +76,8 @@ Elf64_Addr inject_elf(elf64_t *telf, uint8_t *pcode, size_t psize)
 	tmpoff = telf->ehdr->e_shoff;
 	telf->ehdr->e_shoff += PAGE_SIZE;
 	printf("%s Section header offset: 0x%08lx --> 0x%08lx\n", GREEN("[+]"), tmpoff, telf->ehdr->e_shoff);
+
+striped:
 
 	if ((fd = open(TMP_FILE, O_CREAT | O_WRONLY, telf->mode)) < 0)
 	{

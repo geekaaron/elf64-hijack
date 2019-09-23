@@ -41,6 +41,29 @@ int load_elf(char *file, elf64_t *elf)
 		fprintf(stderr, "%s %s is not an ELF file\n", RED("[-]"), file);
 		return -1;
 	}
+
+	elf->textoff = elf->textvaddr = 0;
+	elf->dataoff = elf->datavaddr = 0;
+	elf->dyn = NULL;
+	for (int i = 0; i < elf->ehdr->e_phnum; i++)
+	{
+		if (elf->phdr[i].p_type == PT_LOAD)
+		{
+			switch (!!elf->phdr[i].p_offset)
+			{
+			case 0:
+				elf->textoff = elf->phdr[i].p_offset;
+				elf->textvaddr = elf->phdr[i].p_vaddr;
+				break;
+			case 1:
+				elf->dataoff = elf->phdr[i].p_offset;
+				elf->datavaddr = elf->phdr[i].p_vaddr;
+			}
+		}
+		else if (elf->phdr[i].p_type == PT_DYNAMIC)
+			elf->dyn = (Elf64_Dyn *)&elf->mem[elf->phdr[i].p_offset];
+	}
+
 	close(fd);
 
 	return 0;
@@ -48,11 +71,10 @@ int load_elf(char *file, elf64_t *elf)
 
 void unload_elf(elf64_t *elf)
 {
-	if (!elf) return;
+	if (!elf->mem) return;
 	munmap(elf->mem, elf->size);
 }
 
-/* Striped by command strip */
 int iself_striped(elf64_t *elf)
 {
 	for (int i = 0; i < elf->ehdr->e_shnum; i++)
