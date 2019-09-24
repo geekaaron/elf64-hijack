@@ -1,7 +1,7 @@
 
 OBJS += relocate.o plthijack.o utils.o inject.o
 
-.PHONY: all, clean
+.PHONY: all clean
 
 all: relocate plthijack
 
